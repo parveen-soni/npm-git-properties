@@ -133,3 +133,7 @@ dist
 /.idea/modules.xml
 /npm-git-properties.iml
 /.idea/vcs.xml
+
+# build output
+dist
+gitDetails.json
