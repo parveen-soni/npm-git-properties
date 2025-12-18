@@ -1,6 +1,6 @@
 {
   "name": "npm-git-properties",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "parveen-rx",
   "description": "Generate repository git details",
   "bugs": {
