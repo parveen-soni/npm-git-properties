@@ -12,27 +12,29 @@ const refBranch: RegExp = /^ref: refs\/heads\/(.*)\n/;
 const currentRepoName: string = 'NPM-GIT-PROPERTIES';
 const detachedAtHeadPrefix: string = 'Detached At Head: ';
 
-const KEY_GIT_BRANCH: string = "git.branch";
-const KEY_GIT_BUILD_HOST: string = "git.build.host";
-const KEY_GIT_BUILD_VERSION: string = "git.build.version";
-const KEY_GIT_BUILD_USER_NAME: string = "git.build.user.name";
-const KEY_GIT_BUILD_USER_EMAIL: string = "git.build.user.email";
-const KEY_GIT_COMMIT_ID_ABBREVIATED: string = "git.commit.id.abbrev";
-const KEY_GIT_COMMIT_ID_DESCRIBE: string = "git.commit.id.describe";
-const KEY_GIT_COMMIT_ID: string = "git.commit.id.full";
-const KEY_GIT_COMMIT_SHORT_MESSAGE: string = "git.commit.message.short";
-const KEY_GIT_COMMIT_FULL_MESSAGE: string = "git.commit.message.full";
-const KEY_GIT_COMMIT_USER_NAME: string = "git.commit.user.name";
-const KEY_GIT_COMMIT_USER_EMAIL: string = "git.commit.user.email";
-const KEY_GIT_COMMIT_TIME: string = "git.commit.time";
-const KEY_GIT_DIRTY: string = "git.dirty";
-const KEY_GIT_REMOTE_ORIGIN_URL: string = "git.remote.origin.url";
-const KEY_GIT_TAGS: string = "git.tags";
-const KEY_GIT_CLOSEST_TAG_NAME: string = "git.closest.tag.name";
-const KEY_GIT_CLOSEST_TAG_COMMIT_COUNT: string = "git.closest.tag.commit.count";
-const KEY_GIT_TOTAL_COMMIT_COUNT: string = "git.total.commit.count";
+import {
+    KEY_GIT_BRANCH,
+    KEY_GIT_BUILD_HOST,
+    KEY_GIT_BUILD_VERSION,
+    KEY_GIT_BUILD_USER_NAME,
+    KEY_GIT_BUILD_USER_EMAIL,
+    KEY_GIT_COMMIT_ID_ABBREVIATED,
+    KEY_GIT_COMMIT_ID_DESCRIBE,
+    KEY_GIT_COMMIT_ID,
+    KEY_GIT_COMMIT_SHORT_MESSAGE,
+    KEY_GIT_COMMIT_FULL_MESSAGE,
+    KEY_GIT_COMMIT_USER_NAME,
+    KEY_GIT_COMMIT_USER_EMAIL,
+    KEY_GIT_COMMIT_TIME,
+    KEY_GIT_DIRTY,
+    KEY_GIT_REMOTE_ORIGIN_URL,
+    KEY_GIT_TAGS,
+    KEY_GIT_CLOSEST_TAG_NAME,
+    KEY_GIT_CLOSEST_TAG_COMMIT_COUNT,
+    KEY_GIT_TOTAL_COMMIT_COUNT,
+} from './constants';
 
-const fileName: string = 'gitDetails.json';
+const defaultFileName: string = 'gitDetails.json';
 
 const _exeCmd = (cmd: string, args: string[]): string => {
     let result: any;
@@ -188,55 +190,58 @@ const prepareObject = (key: string, value: any): any => {
     return jsonObject;
 };
 
-const castMapToNestedObject = (map: Map<string, any>): any => {
+const castObjectToNestedObject = (obj: { [key: string]: any }): any => {
     let jsonObject: any = {};
-    map.forEach((value, key) => {
-        const result: any = prepareObject(key, value);
-        jsonObject = deepMerge({}, jsonObject, result);
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            const result: any = prepareObject(key, obj[key]);
+            jsonObject = deepMerge({}, jsonObject, result);
+        }
     }
-    );
     return jsonObject;
 };
 
-const getGitProp = (customGitProp?: Map<string, any>): Map<string, any> => {
-    const gitPropMap: Map<string, any> = new Map();
-    gitPropMap.set(KEY_GIT_BRANCH, currentBranch());
-    gitPropMap.set(KEY_GIT_BUILD_HOST, buildHost());
-    gitPropMap.set(KEY_GIT_BUILD_VERSION, buildVersion());
-    gitPropMap.set(KEY_GIT_BUILD_USER_NAME, buildUserName());
-    gitPropMap.set(KEY_GIT_BUILD_USER_EMAIL, buildUserEmail());
-    gitPropMap.set(KEY_GIT_COMMIT_ID_ABBREVIATED, commitIdAbbrev());
-    gitPropMap.set(KEY_GIT_COMMIT_ID_DESCRIBE, commitIdDescAndTags(true));
-    gitPropMap.set(KEY_GIT_COMMIT_ID, commitIdFull());
-    gitPropMap.set(KEY_GIT_COMMIT_SHORT_MESSAGE, lastCommitMsg(true));
-    gitPropMap.set(KEY_GIT_COMMIT_FULL_MESSAGE, lastCommitMsg());
-    gitPropMap.set(KEY_GIT_COMMIT_USER_NAME, commitUserInfo());
-    gitPropMap.set(KEY_GIT_COMMIT_USER_EMAIL, commitUserInfo(true));
-    gitPropMap.set(KEY_GIT_COMMIT_TIME, dateOfLastCommit());
-    gitPropMap.set(KEY_GIT_DIRTY, isDirty());
-    gitPropMap.set(KEY_GIT_REMOTE_ORIGIN_URL, remoteUrl());
-    gitPropMap.set(KEY_GIT_TAGS, commitIdDescAndTags());
-    gitPropMap.set(KEY_GIT_CLOSEST_TAG_NAME, commitIdDescAndTags());
-    gitPropMap.set(KEY_GIT_CLOSEST_TAG_COMMIT_COUNT, closestTagCommitCount());
-    gitPropMap.set(KEY_GIT_TOTAL_COMMIT_COUNT, countOfAllCommits());
-    return customGitProp ? new Map([...gitPropMap, ...customGitProp]) : gitPropMap;
+const getGitProp = (customGitProp?: { [key: string]: any }): { [key: string]: any } => {
+    const gitProp: { [key: string]: any } = {
+        [KEY_GIT_BRANCH]: currentBranch(),
+        [KEY_GIT_BUILD_HOST]: buildHost(),
+        [KEY_GIT_BUILD_VERSION]: buildVersion(),
+        [KEY_GIT_BUILD_USER_NAME]: buildUserName(),
+        [KEY_GIT_BUILD_USER_EMAIL]: buildUserEmail(),
+        [KEY_GIT_COMMIT_ID_ABBREVIATED]: commitIdAbbrev(),
+        [KEY_GIT_COMMIT_ID_DESCRIBE]: commitIdDescAndTags(true),
+        [KEY_GIT_COMMIT_ID]: commitIdFull(),
+        [KEY_GIT_COMMIT_SHORT_MESSAGE]: lastCommitMsg(true),
+        [KEY_GIT_COMMIT_FULL_MESSAGE]: lastCommitMsg(),
+        [KEY_GIT_COMMIT_USER_NAME]: commitUserInfo(),
+        [KEY_GIT_COMMIT_USER_EMAIL]: commitUserInfo(true),
+        [KEY_GIT_COMMIT_TIME]: dateOfLastCommit(),
+        [KEY_GIT_DIRTY]: isDirty(),
+        [KEY_GIT_REMOTE_ORIGIN_URL]: remoteUrl(),
+        [KEY_GIT_TAGS]: commitIdDescAndTags(),
+        [KEY_GIT_CLOSEST_TAG_NAME]: commitIdDescAndTags(),
+        [KEY_GIT_CLOSEST_TAG_COMMIT_COUNT]: closestTagCommitCount(),
+        [KEY_GIT_TOTAL_COMMIT_COUNT]: countOfAllCommits(),
+    };
+    return customGitProp ? { ...gitProp, ...customGitProp } : gitProp;
 };
 
-export const gitInfoAsJson = (customGitPropMap?: Map<string, any>, requireObject?: boolean): any => {
-    const finalGitPropMap: Map<string, any> = getGitProp(customGitPropMap);
-    const gitInfoObject: any = castMapToNestedObject(finalGitPropMap);
+export const gitInfoAsJson = (customGitPropMap?: { [key: string]: any }, requireObject?: boolean): any => {
+    const finalGitProp: { [key: string]: any } = getGitProp(customGitPropMap);
+    const gitInfoObject: any = castObjectToNestedObject(finalGitProp);
     return requireObject ? gitInfoObject : JSON.stringify(gitInfoObject, null, 2);
 };
 
-export const createGitInfoFile = (customGitPropMap?: Map<string, any>): boolean => {
+export const createGitInfoFile = (customGitPropMap?: { [key: string]: any }, fileName?: string): boolean => {
+    const targetFile = fileName || defaultFileName;
     const gitInfoJson: string = gitInfoAsJson(customGitPropMap);
     try {
-        if (gracefulFsLib.existsSync(fileName)) {
-            gracefulFsLib.unlinkSync(fileName);
+        if (gracefulFsLib.existsSync(targetFile)) {
+            gracefulFsLib.unlinkSync(targetFile);
         }
-        gracefulFsLib.writeFileSync(fileName, gitInfoJson);
+        gracefulFsLib.writeFileSync(targetFile, gitInfoJson);
         return true;
     } catch (error) {
-        throw new Error(currentRepoName + " has failed to create " + fileName + " due to " + error);
+        throw new Error(currentRepoName + " has failed to create " + targetFile + " due to " + error);
     }
 }

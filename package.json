@@ -29,7 +29,7 @@
     "graceful-fs": "^4.2.11",
     "os": "^0.1.2",
     "path": "^0.12.7",
-    "shelljs": "^0.8.5"
+    "shelljs": "^0.10.0"
   },
   "keywords": [],
   "contributors": [

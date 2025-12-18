@@ -1,12 +1,13 @@
 import * as git from '../src/index';
+import * as fs from 'fs';
 
 describe('npm-git-properties', () => {
-    const customPropMap = new Map<string, string>();
+    const customPropMap = {
+        "git.build.user.name": "App User",
+        "git.build.user.email": "appuser@app.com"
+    };
     const userName = "App User";
     const userEmail = "appuser@app.com";
-
-    customPropMap.set("git.build.user.name", userName);
-    customPropMap.set("git.build.user.email", userEmail);
 
     it('currentBranch() returns a string with non-zero length', () => {
         const result = git.currentBranch();
@@ -84,7 +85,7 @@ describe('npm-git-properties', () => {
     });
 
     it('gitInfoAsJson returns an object', () => {
-        const result = git.gitInfoAsJson(new Map(), true);
+        const result = git.gitInfoAsJson({}, true);
         expect(typeof result).toBe('object');
     });
 
@@ -103,5 +104,13 @@ describe('npm-git-properties', () => {
     it('createGitInfoFile creates as file as output', () => {
         const result = git.createGitInfoFile(customPropMap);
         expect(typeof result).toBe('boolean');
+    });
+
+    it('createGitInfoFile creates a file with a custom name', () => {
+        const customFileName = 'customGitDetails.json';
+        const result = git.createGitInfoFile(customPropMap, customFileName);
+        expect(result).toBe(true);
+        expect(fs.existsSync(customFileName)).toBe(true);
+        fs.unlinkSync(customFileName);
     });
 });

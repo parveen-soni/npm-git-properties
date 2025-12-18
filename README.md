@@ -112,14 +112,3 @@ return as true if able to write git details in a file `gitDetails.json`, throws 
 ## Donations
 
 [Donate on UPI ID(India): parveensoni14891@okhdfcbank]()
-
----
-## Suggestions for Improvement
-
-This repository could be further improved by:
-
-*   **Adding more tests:** While the existing tests cover the basic functionality, more comprehensive tests could be added to cover edge cases and ensure the reliability of the library.
-*   **Using a linter:** A linter such as ESLint could be used to enforce a consistent coding style and catch potential errors.
-*   **Setting up a CI/CD pipeline:** A CI/CD pipeline could be set up to automatically run tests and publish the package to npm.
-*   **Adding support for more Git properties:** The library could be extended to support more Git properties, such as the author of the last commit.
-*   **Improving the documentation:** The documentation could be improved by adding more examples and providing more detailed explanations of the API.
