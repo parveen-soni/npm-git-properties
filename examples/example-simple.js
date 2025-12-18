@@ -1,6 +1,6 @@
 'use strict';
 
-const gitInfoUtil = require('../index');
+const gitInfoUtil = require('../dist/index');
 
 console.log('gitInfoUtil.currentBranch() => ' + gitInfoUtil.currentBranch());
 // e.g. v1.0.0

@@ -89,16 +89,19 @@ return the result of `git rev-list --count <tagName from commitIdDescAndTags>`.
 
 return the count as Number for all commits present in the git repository.
 
-#### `gitUtil.gitInfoAsJson(customGitPropMap, requireObject)` &rarr; String/Object
+#### `gitUtil.gitInfoAsJson(customGitProp, requireObject)` &rarr; String/Object
 
 return the all git information as JSON String or JSON Object (if param requireObject is true)
 
-- Optional param `customGitPropMap` can be used to override the git information.
+- Optional param `customGitProp` can be used to override the git information. This should be a plain object.
 - Optional param `requireObject as Boolean` can be used to define return type as JSON Object.
 
-#### `gitUtil.createGitInfoFile` &rarr; Boolean
+#### `gitUtil.createGitInfoFile(customGitProp, fileName)` &rarr; Boolean
 
-return as true if able to write git details in a file `gitDetails.json`, throws error if not able to write any changes.
+return as true if able to write git details in a file, throws error if not able to write any changes.
+
+- Optional param `customGitProp` can be used to override the git information. This should be a plain object.
+- Optional param `fileName` can be used to specify a custom file name. The default is `gitDetails.json`.
 
 ## Inspiration
 1. https://github.com/kurttheviking/git-rev-sync-js (NPM Module)
