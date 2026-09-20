@@ -2,7 +2,8 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const tscBin = path.join(__dirname, '..', 'node_modules', '.bin', 'tsc');
+const isWin = process.platform === 'win32';
+const tscBin = path.join(__dirname, '..', 'node_modules', '.bin', isWin ? 'tsc.cmd' : 'tsc');
 
 console.log('Building CommonJS...');
 execSync(`"${tscBin}"`, { stdio: 'inherit', env: process.env });

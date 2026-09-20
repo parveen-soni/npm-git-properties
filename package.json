@@ -20,8 +20,27 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "import": "./dist/constants.mjs",
+      "require": "./dist/constants.js"
     }
   },
+  "keywords": [
+    "git",
+    "git-properties",
+    "actuator",
+    "spring-boot",
+    "express-actuator",
+    "git-info",
+    "git-revision",
+    "commit-hash",
+    "build-info",
+    "ci-cd",
+    "docker",
+    "zero-dependency"
+  ],
   "files": [
     "dist"
   ],

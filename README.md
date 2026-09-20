@@ -238,7 +238,7 @@ git.createGitInfoFile(customProps, 'git.properties');
 - `remoteUrlAsync()` &rarr; `Promise<string>`
 - `countOfAllCommitsAsync()` &rarr; `Promise<number>`
 - `gitInfoAsPropertiesAsync(customProps?)` &rarr; `Promise<string>`
-- `gitInfoAsJsonAsync(customProps?, requireObject?)` &rarr; `Promise<any>`
+- `gitInfoAsJsonAsync(customProps?, requireObject?)` &rarr; `Promise<string | GitProperties>`
 - `createGitInfoFileAsync(customProps?, fileName?, format?)` &rarr; `Promise<boolean>`
 
 ---
