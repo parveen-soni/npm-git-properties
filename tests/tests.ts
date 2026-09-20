@@ -1,5 +1,8 @@
 import * as git from '../src/index';
+import { runCli } from '../src/cli';
 import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 describe('npm-git-properties', () => {
     const customPropMap = {
@@ -211,6 +214,160 @@ describe('npm-git-properties', () => {
             expect(res).toBe(true);
             expect(fs.existsSync(asyncFileName)).toBe(true);
             fs.unlinkSync(asyncFileName);
+        });
+    });
+
+    describe('Hardening and Edge Cases', () => {
+        it('prevents prototype pollution in customPropMap', () => {
+            const maliciousMap = JSON.parse('{"__proto__": {"polluted": true}, "git.build.user.name": "Safe User"}');
+            git.gitInfoAsJson(maliciousMap, true);
+            expect((Object.prototype as any).polluted).toBeUndefined();
+        });
+
+        it('buildVersion() resolves version from current repo package.json', () => {
+            const version = git.buildVersion();
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            expect(version).toBe(pkg.version);
+        });
+
+        it('currentBranch() falls back to GITHUB_REF_NAME when in CI/detached HEAD', () => {
+            const originalRef = process.env.GITHUB_REF_NAME;
+            const originalHeadRef = process.env.GITHUB_HEAD_REF;
+            const originalGitBranch = process.env.GIT_BRANCH;
+            try {
+                delete process.env.GIT_BRANCH;
+                delete process.env.GITHUB_HEAD_REF;
+                process.env.GITHUB_REF_NAME = 'feature-ci-test';
+                const branch = git.currentBranch('/tmp/non-existent-git-dir-12345');
+                expect(branch).toBe('feature-ci-test');
+            } finally {
+                if (originalRef !== undefined) {
+                    process.env.GITHUB_REF_NAME = originalRef;
+                } else {
+                    delete process.env.GITHUB_REF_NAME;
+                }
+                if (originalHeadRef !== undefined) {
+                    process.env.GITHUB_HEAD_REF = originalHeadRef;
+                } else {
+                    delete process.env.GITHUB_HEAD_REF;
+                }
+                if (originalGitBranch !== undefined) {
+                    process.env.GIT_BRANCH = originalGitBranch;
+                } else {
+                    delete process.env.GIT_BRANCH;
+                }
+            }
+        });
+
+        it('getGitProp exports flat properties object', () => {
+            const props = git.getGitProp();
+            expect(typeof props).toBe('object');
+            expect(props['git.branch']).toBeDefined();
+            expect(props['git.commit.id.full']).toBeDefined();
+        });
+
+        it('handles git worktree .git file containing spaces in path', () => {
+            const tempDir = path.join(os.tmpdir(), 'git-worktree-space-test-' + Date.now());
+            const targetDir = path.join(tempDir, 'nested folder with spaces', '.git');
+            fs.mkdirSync(targetDir, { recursive: true });
+            fs.writeFileSync(path.join(targetDir, 'HEAD'), 'ref: refs/heads/worktree-branch\n');
+
+            const worktreeDir = path.join(tempDir, 'worktree');
+            fs.mkdirSync(worktreeDir, { recursive: true });
+            fs.writeFileSync(path.join(worktreeDir, '.git'), `gitdir: ${targetDir}\n`);
+
+            try {
+                const branch = git.currentBranch(worktreeDir);
+                expect(branch).toBe('worktree-branch');
+            } finally {
+                fs.rmSync(tempDir, { recursive: true, force: true });
+            }
+        });
+    });
+
+    describe('CLI (runCli)', () => {
+        it('runCli returns help text and exitCode 0 on --help', () => {
+            const logs: string[] = [];
+            const res = runCli(['--help'], { log: (msg) => logs.push(msg) });
+            expect(res.exitCode).toBe(0);
+            expect(res.output).toContain('npm-git-properties CLI');
+            expect(logs[0]).toContain('npm-git-properties CLI');
+        });
+
+        it('runCli returns version and exitCode 0 on --version', () => {
+            const logs: string[] = [];
+            const res = runCli(['--version'], { log: (msg) => logs.push(msg) });
+            expect(res.exitCode).toBe(0);
+            expect(res.output).toBe(git.buildVersion());
+            expect(logs[0]).toBe(git.buildVersion());
+        });
+
+        it('runCli returns error and exitCode 1 on missing option value', () => {
+            const errors: string[] = [];
+            const res = runCli(['-o'], { error: (msg) => errors.push(msg) });
+            expect(res.exitCode).toBe(1);
+            expect(res.error).toContain("Option '-o' requires a value");
+            expect(errors[0]).toContain("Option '-o' requires a value");
+        });
+
+        it('runCli returns error and exitCode 1 on invalid format', () => {
+            const errors: string[] = [];
+            const res = runCli(['-f', 'invalid-format'], { error: (msg) => errors.push(msg) });
+            expect(res.exitCode).toBe(1);
+            expect(res.error).toContain('Unknown format: invalid-format');
+            expect(errors[0]).toContain('Unknown format: invalid-format');
+        });
+
+        it('runCli returns error and exitCode 1 on non-existent directory', () => {
+            const errors: string[] = [];
+            const res = runCli(['-d', '/path/to/non/existent/directory/xyz123'], { error: (msg) => errors.push(msg) });
+            expect(res.exitCode).toBe(1);
+            expect(res.error).toContain('Directory does not exist');
+            expect(errors[0]).toContain('Directory does not exist');
+        });
+
+        it('runCli prints json output with --print', () => {
+            const logs: string[] = [];
+            const res = runCli(['--print'], { log: (msg) => logs.push(msg) });
+            expect(res.exitCode).toBe(0);
+            expect(res.output).toBeDefined();
+            const parsed = JSON.parse(res.output!);
+            expect(parsed.git).toBeDefined();
+            expect(parsed.git.branch).toBeDefined();
+        });
+
+        it('runCli prints properties output with --print -f properties', () => {
+            const logs: string[] = [];
+            const res = runCli(['--print', '-f', 'properties'], { log: (msg) => logs.push(msg) });
+            expect(res.exitCode).toBe(0);
+            expect(res.output).toContain('git.branch=');
+        });
+
+        it('runCli prints flat-json output with --print -f flat-json', () => {
+            const logs: string[] = [];
+            const res = runCli(['--print', '-f', 'flat-json'], { log: (msg) => logs.push(msg) });
+            expect(res.exitCode).toBe(0);
+            const parsed = JSON.parse(res.output!);
+            expect(parsed['git.branch']).toBeDefined();
+        });
+
+        it('runCli generates file at specified output path', () => {
+            const cliOutputFile = 'cli-test-output.json';
+            const logs: string[] = [];
+            const res = runCli(['-o', cliOutputFile], { log: (msg) => logs.push(msg) });
+            expect(res.exitCode).toBe(0);
+            expect(fs.existsSync(cliOutputFile)).toBe(true);
+            const content = JSON.parse(fs.readFileSync(cliOutputFile, 'utf8'));
+            expect(content.git).toBeDefined();
+            fs.unlinkSync(cliOutputFile);
+        });
+
+        it('runCli returns error and exitCode 1 on unknown option', () => {
+            const errors: string[] = [];
+            const res = runCli(['--unknown-flag'], { error: (msg) => errors.push(msg) });
+            expect(res.exitCode).toBe(1);
+            expect(res.error).toContain('Unknown option: --unknown-flag');
+            expect(errors[0]).toContain('Unknown option: --unknown-flag');
         });
     });
 });
