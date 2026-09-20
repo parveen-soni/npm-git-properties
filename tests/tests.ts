@@ -101,16 +101,116 @@ describe('npm-git-properties', () => {
         expect(result["git"]["build"]["user"]["email"]).toBe(userEmail);
     });
 
-    it('createGitInfoFile creates as file as output', () => {
-        const result = git.createGitInfoFile(customPropMap);
-        expect(typeof result).toBe('boolean');
+    it('gitInfoAsJson overrides result with Map custom property map', () => {
+        const propMap = new Map();
+        propMap.set("git.build.user.name", "Map User");
+        propMap.set("git.build.user.email", "mapuser@app.com");
+        const result = git.gitInfoAsJson(propMap, true);
+        expect(result["git"]["build"]["user"]["name"]).toBe("Map User");
+        expect(result["git"]["build"]["user"]["email"]).toBe("mapuser@app.com");
     });
 
-    it('createGitInfoFile creates a file with a custom name', () => {
-        const customFileName = 'customGitDetails.json';
-        const result = git.createGitInfoFile(customPropMap, customFileName);
+    it('gitInfoAsProperties returns standard Java key=value properties', () => {
+        const result = git.gitInfoAsProperties(customPropMap);
+        expect(typeof result).toBe('string');
+        expect(result).toContain('git.branch=');
+        expect(result).toContain('git.commit.id.full=');
+        expect(result).toContain('git.build.user.name=App User');
+        expect(result).toContain('git.build.user.email=appuser@app.com');
+    });
+
+    it('createGitInfoFile automatically detects .properties extension', () => {
+        const propFileName = 'test-git.properties';
+        const result = git.createGitInfoFile(customPropMap, propFileName);
         expect(result).toBe(true);
-        expect(fs.existsSync(customFileName)).toBe(true);
-        fs.unlinkSync(customFileName);
+        expect(fs.existsSync(propFileName)).toBe(true);
+        const content = fs.readFileSync(propFileName, 'utf8');
+        expect(content).toContain('git.branch=');
+        expect(content).toContain('git.build.user.name=App User');
+        fs.unlinkSync(propFileName);
+    });
+
+    it('createGitInfoFile creates flat-json when requested', () => {
+        const flatFileName = 'test-flat.json';
+        const result = git.createGitInfoFile(customPropMap, flatFileName, 'flat-json');
+        expect(result).toBe(true);
+        expect(fs.existsSync(flatFileName)).toBe(true);
+        const parsed = JSON.parse(fs.readFileSync(flatFileName, 'utf8'));
+        expect(parsed['git.build.user.name']).toBe('App User');
+        fs.unlinkSync(flatFileName);
+    });
+
+    describe('Async APIs', () => {
+        it('commitIdAbbrevAsync() returns valid abbrev commit hash', async () => {
+            const res = await git.commitIdAbbrevAsync();
+            expect(typeof res).toBe('string');
+            expect(res.length).toBeGreaterThanOrEqual(7);
+        });
+
+        it('commitIdFullAsync() returns 40 chars full hash', async () => {
+            const res = await git.commitIdFullAsync();
+            expect(typeof res).toBe('string');
+            expect(res.length).toBe(40);
+        });
+
+        it('lastCommitMsgAsync() returns commit message', async () => {
+            const res = await git.lastCommitMsgAsync();
+            expect(typeof res).toBe('string');
+            expect(res.length).toBeGreaterThan(0);
+        });
+
+        it('commitUserInfoAsync() returns author info', async () => {
+            const res = await git.commitUserInfoAsync();
+            expect(typeof res).toBe('string');
+            expect(res.length).toBeGreaterThan(0);
+        });
+
+        it('dateOfLastCommitAsync() returns date string', async () => {
+            const res = await git.dateOfLastCommitAsync();
+            expect(typeof res).toBe('string');
+            expect(res.length).toBeGreaterThan(0);
+        });
+
+        it('isDirtyAsync() returns boolean', async () => {
+            const res = await git.isDirtyAsync();
+            expect(typeof res).toBe('boolean');
+        });
+
+        it('remoteUrlAsync() returns remote URL', async () => {
+            const res = await git.remoteUrlAsync();
+            expect(typeof res).toBe('string');
+            expect(res.includes('github.com')).toBe(true);
+        });
+
+        it('countOfAllCommitsAsync() returns commit count number', async () => {
+            const res = await git.countOfAllCommitsAsync();
+            expect(typeof res).toBe('number');
+            expect(res).toBeGreaterThan(0);
+        });
+
+        it('gitInfoAsJsonAsync returns parsed object and serialized string', async () => {
+            const obj = await git.gitInfoAsJsonAsync(customPropMap, true);
+            expect(typeof obj).toBe('object');
+            expect(obj.git.build.user.name).toBe(userName);
+
+            const str = await git.gitInfoAsJsonAsync();
+            expect(typeof str).toBe('string');
+            expect(typeof JSON.parse(str)).toBe('object');
+        });
+
+        it('gitInfoAsPropertiesAsync returns valid properties string', async () => {
+            const props = await git.gitInfoAsPropertiesAsync(customPropMap);
+            expect(typeof props).toBe('string');
+            expect(props).toContain('git.branch=');
+            expect(props).toContain('git.build.user.name=App User');
+        });
+
+        it('createGitInfoFileAsync creates file asynchronously', async () => {
+            const asyncFileName = 'asyncGitDetails.json';
+            const res = await git.createGitInfoFileAsync(customPropMap, asyncFileName);
+            expect(res).toBe(true);
+            expect(fs.existsSync(asyncFileName)).toBe(true);
+            fs.unlinkSync(asyncFileName);
+        });
     });
 });
