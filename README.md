@@ -1,117 +1,255 @@
 # npm-git-properties
 
-Generate repository git details
+[![CI](https://github.com/parveen-rx/npm-git-properties/actions/workflows/ci.yml/badge.svg)](https://github.com/parveen-rx/npm-git-properties/actions/workflows/ci.yml)
+[![npm version](https://badge.fury.io/js/npm-git-properties.svg)](https://badge.fury.io/js/npm-git-properties)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](https://www.npmjs.com/package/npm-git-properties)
 
-## Example
+> Lightweight, **zero-dependency** Git metadata and build-stamping toolkit for Node.js, Docker, CI/CD, and full-stack web applications. Compatible with **Spring Boot Actuator** and **express-actuator**.
+
+---
+
+## Features
+
+- **Zero External Dependencies**: Powered purely by Node.js built-ins.
+- **Dual ESM & CommonJS**: Full support for both `import` and `require`.
+- **Zero-Config CLI**: Generate `git.properties` or `gitDetails.json` in one command (`npx git-properties`).
+- **Spring Boot / Actuator Compatible**: Outputs standard Java `.properties` format as well as nested or flat JSON.
+- **Sync & Async APIs**: Non-blocking `Promise`-based APIs for web servers, and synchronous methods for build scripts.
+- **Docker & CI/CD Resilient**: Automatic fallbacks for GitHub Actions, GitLab CI, Vercel, and gitless container environments.
+- **Strong TypeScript Types**: Comprehensive type declarations for all properties and options.
+
+---
+
+## Installation
+
+```bash
+npm install npm-git-properties
+```
+
+Or run via `npx` without installing:
+
+```bash
+npx git-properties
+```
+
+---
+
+## CLI Usage
+
+Generate git properties files directly in your `package.json` build scripts or Dockerfile:
+
+```json
+{
+  "scripts": {
+    "prebuild": "git-properties --format properties --output dist/git.properties",
+    "build": "tsc"
+  }
+}
+```
+
+### CLI Options
+
+```
+Usage:
+  git-properties [options]
+
+Options:
+  -o, --output <file>    Output file path (default: gitDetails.json or git.properties)
+  -f, --format <format>  Output format: properties, json, flat-json
+  -d, --dir <directory>  Target git repository directory (default: current working directory)
+  -p, --print            Print output to stdout instead of writing to a file
+  -v, --version          Print version
+  -h, --help             Show help
+```
+
+### CLI Examples
+
+```bash
+# Generate standard Java git.properties for Spring Boot / express-actuator
+npx git-properties --format properties --output git.properties
+
+# Generate nested JSON file
+npx git-properties --format json --output gitDetails.json
+
+# Print properties to stdout
+npx git-properties --print --format properties
+```
+
+---
+
+## Programmatic Usage
+
+### ESM (ECMAScript Modules)
+
+```ts
+import { 
+  gitInfoAsProperties, 
+  gitInfoAsJson, 
+  createGitInfoFile,
+  commitIdAbbrev 
+} from 'npm-git-properties';
+
+console.log(commitIdAbbrev()); // e.g. "ca99ec0"
+
+// Generate standard Java key=value properties string
+const props = gitInfoAsProperties();
+console.log(props);
+```
+
+### CommonJS
 
 ```js
-var gitUtil = require('npm-git-properties');
+const git = require('npm-git-properties');
 
-console.log(gitUtil.commitIdAbbrev());
-// 18f5104
+console.log(git.currentBranch()); // e.g. "master"
+console.log(git.commitIdFull());  // e.g. "ca99ec0232c2397ae4ff711ef62a088c87818f9f"
 
-console.log(gitUtil.commitIdFull());
-// 18f51041eead0e4952bfe11987504e6fdf682a0f
-
-console.log(gitUtil.currentBranch());
-// v1.0.0
+// Write to file (auto-detects .properties format by extension)
+git.createGitInfoFile(undefined, 'git.properties');
 ```
 
-To understand better, run the examples: `node .\examples\example-simple.js`  or `node run .\examples\example-complex.js`
+### Asynchronous APIs (Web Servers & Microservices)
 
-To run test cases, run the file: `node .\tests\tests.js`
+Non-blocking methods prevent blocking the Node.js event loop:
 
-## Install
+```ts
+import { gitInfoAsJsonAsync, createGitInfoFileAsync } from 'npm-git-properties';
 
-`npm install npm-git-properties --save`
+// In an Express / Fastify / NestJS health route:
+app.get('/info', async (req, res) => {
+  const gitInfo = await gitInfoAsJsonAsync(undefined, true);
+  res.json(gitInfo);
+});
 
-## API
-
-``` js
-var gitUtil = require('npm-git-properties');
+// Async file writing
+await createGitInfoFileAsync(undefined, 'git.properties');
 ```
 
-#### `gitUtil.currentBranch([filePath])` &rarr; String
+---
 
-return the result of `git rev-parse --short HEAD`
+## Output Formats
 
-- Optional param `filePath` can be used to find current branch of a repo outside the current working directory
+### 1. Java Properties Format (`properties`)
+Ideal for Spring Boot Actuator, `express-actuator`, or logging:
 
-#### `gitUtil.buildHost()` &rarr; String
+```properties
+git.branch=master
+git.build.host=runner-1
+git.build.version=2.0.0
+git.commit.id.abbrev=ca99ec0
+git.commit.id.full=ca99ec0232c2397ae4ff711ef62a088c87818f9f
+git.commit.message.short=feat: Add async API and CLI
+git.commit.time=Tue Sep 15 2026 22:30:00 GMT+0000
+git.commit.user.email=dev@example.com
+git.commit.user.name=Developer
+git.dirty=false
+git.remote.origin.url=https://github.com/parveen-rx/npm-git-properties.git
+git.tags=v2.0.0
+git.total.commit.count=42
+```
 
-return the result of `os.hostname` where commands are being executed.
+### 2. Nested JSON Format (`json`)
+Default structure formatted into nested objects:
 
-#### `gitUtil.buildVersion()` &rarr; String
+```json
+{
+  "git": {
+    "branch": "master",
+    "build": {
+      "host": "runner-1",
+      "version": "2.0.0"
+    },
+    "commit": {
+      "id": {
+        "abbrev": "ca99ec0",
+        "full": "ca99ec0232c2397ae4ff711ef62a088c87818f9f"
+      },
+      "message": {
+        "short": "feat: Add async API and CLI",
+        "full": "feat: Add async API and CLI"
+      },
+      "user": {
+        "name": "Developer",
+        "email": "dev@example.com"
+      },
+      "time": "Tue Sep 15 2026 22:30:00 GMT+0000"
+    },
+    "dirty": false,
+    "remote": {
+      "origin": {
+        "url": "https://github.com/parveen-rx/npm-git-properties.git"
+      }
+    },
+    "total": {
+      "commit": {
+        "count": 42
+      }
+    }
+  }
+}
+```
 
-return the current package version of repo, return error text if not able to read/parse package.json.
+---
 
-#### `gitUtil.commitIdAbbrev()` &rarr; String
+## Custom Property Overrides
 
-return the short hash of the last commit in the git repository.
+You can pass a custom JavaScript `Object` or `Map` to override or extend metadata (e.g. inject build user from CI):
 
-#### `gitUtil.commitIdFull()` &rarr; String
+```js
+const customProps = new Map();
+customProps.set('git.build.user.name', 'CI Builder');
+customProps.set('git.build.user.email', 'ci@company.com');
 
-return the full hash of the last commit in the git repository.
+git.createGitInfoFile(customProps, 'git.properties');
+```
 
-#### `gitUtil.lastCommitMsg(short)` &rarr; String
+---
 
-return commit message of last commit in the git repository.
+## API Reference
 
-- Optional param `short as Boolean` can be used to find short or full commit message.
+### Core Synchronous Methods
+- **`currentBranch(dir?: string)`** &rarr; `string`: Branch name or detached HEAD indicator.
+- **`commitIdAbbrev()`** &rarr; `string`: 7-character abbreviated commit hash.
+- **`commitIdFull()`** &rarr; `string`: 40-character full commit SHA.
+- **`lastCommitMsg(short?: boolean)`** &rarr; `string`: Last commit message (`short` for summary line).
+- **`commitUserInfo(email?: boolean)`** &rarr; `string`: Author name (or email if `true`).
+- **`dateOfLastCommit()`** &rarr; `string`: Date string of last commit.
+- **`isDirty()`** &rarr; `boolean`: Whether working tree has uncommitted modifications.
+- **`remoteUrl()`** &rarr; `string`: Remote origin URL.
+- **`commitIdDescAndTags(flagDirty?: boolean)`** &rarr; `string`: Output from `git describe`.
+- **`closestTagCommitCount()`** &rarr; `string`: Commit count from closest tag.
+- **`countOfAllCommits()`** &rarr; `number`: Total commit count in repository.
+- **`buildHost()`** &rarr; `string`: Hostname where code is executed.
+- **`buildVersion()`** &rarr; `string`: Version read from package.json.
 
-#### `gitUtil.commitUserInfo(email)` &rarr; String
+### File & Serialization Methods
+- **`gitInfoAsProperties(customProps?)`** &rarr; `string`: Format properties as Java key=value.
+- **`gitInfoAsJson(customProps?, requireObject?)`** &rarr; `string | GitProperties`: Returns JSON string or nested JS object.
+- **`createGitInfoFile(customProps?, fileName?, format?)`** &rarr; `boolean`: Creates file on disk. Auto-detects `.properties` extension.
 
-return user details - email (if param is true) and username of the last commit in the git repository.
+### Asynchronous Equivalents
+- `commitIdAbbrevAsync()` &rarr; `Promise<string>`
+- `commitIdFullAsync()` &rarr; `Promise<string>`
+- `lastCommitMsgAsync(short?)` &rarr; `Promise<string>`
+- `commitUserInfoAsync(email?)` &rarr; `Promise<string>`
+- `dateOfLastCommitAsync()` &rarr; `Promise<string>`
+- `isDirtyAsync()` &rarr; `Promise<boolean>`
+- `remoteUrlAsync()` &rarr; `Promise<string>`
+- `countOfAllCommitsAsync()` &rarr; `Promise<number>`
+- `gitInfoAsPropertiesAsync(customProps?)` &rarr; `Promise<string>`
+- `gitInfoAsJsonAsync(customProps?, requireObject?)` &rarr; `Promise<any>`
+- `createGitInfoFileAsync(customProps?, fileName?, format?)` &rarr; `Promise<boolean>`
 
-- Optional param `email as Boolean` can be used to find short or full commit message.
-
-#### `gitUtil.dateOfLastCommit()` &rarr; String
-
-returns date of last commit in the git repository.
-
-#### `gitUtil.isDirty()` &rarr; Boolean
-
-return the result of `git diff-index HEAD --` as Boolean value.
-
-#### `gitUtil.remoteUrl()` &rarr; String
-
-return the current remote URL of the git repository.
-
-#### `gitUtil.commitIdDescAndTags(flagDirty)` &rarr; String
-
-return the result of `git describe --tag --abbrev=0` or (if flagDirty is true) `git describe --tags`.
-
-#### `gitUtil.closestTagCommitCount()` &rarr; Number
-
-return the result of `git rev-list --count <tagName from commitIdDescAndTags>`.
-
-#### `gitUtil.countOfAllCommits()` &rarr; Number
-
-return the count as Number for all commits present in the git repository.
-
-#### `gitUtil.gitInfoAsJson(customGitProp, requireObject)` &rarr; String/Object
-
-return the all git information as JSON String or JSON Object (if param requireObject is true)
-
-- Optional param `customGitProp` can be used to override the git information. This should be a plain object.
-- Optional param `requireObject as Boolean` can be used to define return type as JSON Object.
-
-#### `gitUtil.createGitInfoFile(customGitProp, fileName)` &rarr; Boolean
-
-return as true if able to write git details in a file, throws error if not able to write any changes.
-
-- Optional param `customGitProp` can be used to override the git information. This should be a plain object.
-- Optional param `fileName` can be used to specify a custom file name. The default is `gitDetails.json`.
+---
 
 ## Inspiration
-1. https://github.com/kurttheviking/git-rev-sync-js (NPM Module)
-2. https://github.com/n0mer/gradle-git-properties (Gradle Module)
+
+- [git-rev-sync-js](https://github.com/kurttheviking/git-rev-sync-js)
+- [gradle-git-properties](https://github.com/n0mer/gradle-git-properties)
+
+---
 
 ## License
 
-[MIT](https://github.com/parveen-rx/npm-git-properties/blob/main/LICENSE)
-
-
-## Donations
-
-[Donate on UPI ID(India): parveensoni14891@okhdfcbank]()
+[MIT](LICENSE)
