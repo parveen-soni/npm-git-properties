@@ -232,7 +232,11 @@ describe('npm-git-properties', () => {
 
         it('currentBranch() falls back to GITHUB_REF_NAME when in CI/detached HEAD', () => {
             const originalRef = process.env.GITHUB_REF_NAME;
+            const originalHeadRef = process.env.GITHUB_HEAD_REF;
+            const originalGitBranch = process.env.GIT_BRANCH;
             try {
+                delete process.env.GIT_BRANCH;
+                delete process.env.GITHUB_HEAD_REF;
                 process.env.GITHUB_REF_NAME = 'feature-ci-test';
                 const branch = git.currentBranch('/tmp/non-existent-git-dir-12345');
                 expect(branch).toBe('feature-ci-test');
@@ -241,6 +245,16 @@ describe('npm-git-properties', () => {
                     process.env.GITHUB_REF_NAME = originalRef;
                 } else {
                     delete process.env.GITHUB_REF_NAME;
+                }
+                if (originalHeadRef !== undefined) {
+                    process.env.GITHUB_HEAD_REF = originalHeadRef;
+                } else {
+                    delete process.env.GITHUB_HEAD_REF;
+                }
+                if (originalGitBranch !== undefined) {
+                    process.env.GIT_BRANCH = originalGitBranch;
+                } else {
+                    delete process.env.GIT_BRANCH;
                 }
             }
         });
