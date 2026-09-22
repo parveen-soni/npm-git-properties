@@ -604,84 +604,95 @@ describe('npm-git-properties', () => {
             fs.rmSync(nonGitDir, { recursive: true, force: true });
         });
 
-        it('falls back to Azure DevOps variables in gitless environments', () => {
-            const origSha = process.env.BUILD_SOURCEVERSION;
-            const origBranch = process.env.BUILD_SOURCEBRANCHNAME;
-            const origUri = process.env.BUILD_REPOSITORY_URI;
-            const origUser = process.env.BUILD_REQUESTEDFOR;
+        const withIsolatedCiEnv = (varsToSet: Record<string, string>, fn: () => void) => {
+            const keysToClear = [
+                'GIT_BRANCH', 'GITHUB_HEAD_REF', 'GITHUB_REF_NAME', 'CI_COMMIT_REF_NAME',
+                'VERCEL_GIT_COMMIT_REF', 'BITBUCKET_BRANCH', 'BUILD_SOURCEBRANCHNAME',
+                'BUILD_SOURCEBRANCH', 'CIRCLE_BRANCH', 'BRANCH', 'CF_PAGES_BRANCH', 'HEAD',
+                'GIT_COMMIT', 'GITHUB_SHA', 'CI_COMMIT_SHA', 'VERCEL_GIT_COMMIT_SHA',
+                'BITBUCKET_COMMIT', 'BUILD_SOURCEVERSION', 'CIRCLE_SHA1', 'COMMIT_REF',
+                'CF_PAGES_COMMIT_SHA', 'CODEBUILD_RESOLVED_SOURCE_VERSION',
+                'GIT_URL', 'GITHUB_REPOSITORY', 'CI_REPOSITORY_URL', 'BUILD_REPOSITORY_URI',
+                'CIRCLE_REPOSITORY_URL', 'REPOSITORY_URL', 'CF_PAGES_URL', 'CODEBUILD_SOURCE_REPO_URL',
+                'CI_COMMIT_MESSAGE', 'VERCEL_GIT_COMMIT_MESSAGE',
+                'GIT_AUTHOR_EMAIL', 'CI_COMMIT_AUTHOR_EMAIL', 'BUILD_REQUESTEDFOREMAIL',
+                'GIT_AUTHOR_NAME', 'GITHUB_ACTOR', 'CI_COMMIT_AUTHOR', 'BUILD_REQUESTEDFOR', 'CIRCLE_USERNAME'
+            ];
+            const saved: Record<string, string | undefined> = {};
+            for (const k of keysToClear) {
+                saved[k] = process.env[k];
+                delete process.env[k];
+            }
+            for (const [k, v] of Object.entries(varsToSet)) {
+                process.env[k] = v;
+            }
             try {
-                process.env.BUILD_SOURCEVERSION = 'azure1234567890abcdef1234567890abcdef12';
-                process.env.BUILD_SOURCEBRANCHNAME = 'release/azure';
-                process.env.BUILD_REPOSITORY_URI = 'https://dev.azure.com/org/project/_git/repo';
-                process.env.BUILD_REQUESTEDFOR = 'Azure Pipeline User';
+                fn();
+            } finally {
+                for (const k of keysToClear) {
+                    if (saved[k] !== undefined) {
+                        process.env[k] = saved[k];
+                    } else {
+                        delete process.env[k];
+                    }
+                }
+            }
+        };
 
+        it('falls back to Azure DevOps variables in gitless environments', () => {
+            withIsolatedCiEnv({
+                BUILD_SOURCEVERSION: 'azure1234567890abcdef1234567890abcdef12',
+                BUILD_SOURCEBRANCHNAME: 'release/azure',
+                BUILD_REPOSITORY_URI: 'https://dev.azure.com/org/project/_git/repo',
+                BUILD_REQUESTEDFOR: 'Azure Pipeline User'
+            }, () => {
                 expect(git.commitIdFull(nonGitDir)).toBe('azure1234567890abcdef1234567890abcdef12');
                 expect(git.currentBranch(nonGitDir)).toBe('release/azure');
                 expect(git.remoteUrl(nonGitDir)).toBe('https://dev.azure.com/org/project/_git/repo');
                 expect(git.commitUserInfo(false, nonGitDir)).toBe('Azure Pipeline User');
-            } finally {
-                if (origSha !== undefined) process.env.BUILD_SOURCEVERSION = origSha; else delete process.env.BUILD_SOURCEVERSION;
-                if (origBranch !== undefined) process.env.BUILD_SOURCEBRANCHNAME = origBranch; else delete process.env.BUILD_SOURCEBRANCHNAME;
-                if (origUri !== undefined) process.env.BUILD_REPOSITORY_URI = origUri; else delete process.env.BUILD_REPOSITORY_URI;
-                if (origUser !== undefined) process.env.BUILD_REQUESTEDFOR = origUser; else delete process.env.BUILD_REQUESTEDFOR;
-            }
+            });
         });
 
         it('falls back to CircleCI variables in gitless environments', () => {
-            const origSha = process.env.CIRCLE_SHA1;
-            const origBranch = process.env.CIRCLE_BRANCH;
-            const origUri = process.env.CIRCLE_REPOSITORY_URL;
-            const origUser = process.env.CIRCLE_USERNAME;
-            try {
-                process.env.CIRCLE_SHA1 = 'circle1234567890abcdef1234567890abcdef12';
-                process.env.CIRCLE_BRANCH = 'feature/circleci';
-                process.env.CIRCLE_REPOSITORY_URL = 'git@github.com:org/circle-repo.git';
-                process.env.CIRCLE_USERNAME = 'circleci-runner';
-
+            withIsolatedCiEnv({
+                CIRCLE_SHA1: 'circle1234567890abcdef1234567890abcdef12',
+                CIRCLE_BRANCH: 'feature/circleci',
+                CIRCLE_REPOSITORY_URL: 'git@github.com:org/circle-repo.git',
+                CIRCLE_USERNAME: 'circleci-runner'
+            }, () => {
                 expect(git.commitIdFull(nonGitDir)).toBe('circle1234567890abcdef1234567890abcdef12');
                 expect(git.currentBranch(nonGitDir)).toBe('feature/circleci');
                 expect(git.remoteUrl(nonGitDir)).toBe('git@github.com:org/circle-repo.git');
                 expect(git.commitUserInfo(false, nonGitDir)).toBe('circleci-runner');
-            } finally {
-                if (origSha !== undefined) process.env.CIRCLE_SHA1 = origSha; else delete process.env.CIRCLE_SHA1;
-                if (origBranch !== undefined) process.env.CIRCLE_BRANCH = origBranch; else delete process.env.CIRCLE_BRANCH;
-                if (origUri !== undefined) process.env.CIRCLE_REPOSITORY_URL = origUri; else delete process.env.CIRCLE_REPOSITORY_URL;
-                if (origUser !== undefined) process.env.CIRCLE_USERNAME = origUser; else delete process.env.CIRCLE_USERNAME;
-            }
+            });
         });
 
         it('falls back to Netlify and Cloudflare Pages variables in gitless environments', () => {
-            const origNetlifyCommit = process.env.COMMIT_REF;
-            const origCfSha = process.env.CF_PAGES_COMMIT_SHA;
-            const origCfBranch = process.env.CF_PAGES_BRANCH;
-            try {
-                process.env.COMMIT_REF = 'netlify1234567890abcdef1234567890abcdef';
+            withIsolatedCiEnv({
+                COMMIT_REF: 'netlify1234567890abcdef1234567890abcdef',
+                BRANCH: 'netlify-deploy'
+            }, () => {
                 expect(git.commitIdFull(nonGitDir)).toBe('netlify1234567890abcdef1234567890abcdef');
-                delete process.env.COMMIT_REF;
+                expect(git.currentBranch(nonGitDir)).toBe('netlify-deploy');
+            });
 
-                process.env.CF_PAGES_COMMIT_SHA = 'cfpages1234567890abcdef1234567890abcdef';
-                process.env.CF_PAGES_BRANCH = 'cloudflare-prod';
+            withIsolatedCiEnv({
+                CF_PAGES_COMMIT_SHA: 'cfpages1234567890abcdef1234567890abcdef',
+                CF_PAGES_BRANCH: 'cloudflare-prod'
+            }, () => {
                 expect(git.commitIdFull(nonGitDir)).toBe('cfpages1234567890abcdef1234567890abcdef');
                 expect(git.currentBranch(nonGitDir)).toBe('cloudflare-prod');
-            } finally {
-                if (origNetlifyCommit !== undefined) process.env.COMMIT_REF = origNetlifyCommit; else delete process.env.COMMIT_REF;
-                if (origCfSha !== undefined) process.env.CF_PAGES_COMMIT_SHA = origCfSha; else delete process.env.CF_PAGES_COMMIT_SHA;
-                if (origCfBranch !== undefined) process.env.CF_PAGES_BRANCH = origCfBranch; else delete process.env.CF_PAGES_BRANCH;
-            }
+            });
         });
 
         it('falls back to AWS CodeBuild variables in gitless environments', () => {
-            const origSha = process.env.CODEBUILD_RESOLVED_SOURCE_VERSION;
-            const origUrl = process.env.CODEBUILD_SOURCE_REPO_URL;
-            try {
-                process.env.CODEBUILD_RESOLVED_SOURCE_VERSION = 'codebuild1234567890abcdef1234567890abcd';
-                process.env.CODEBUILD_SOURCE_REPO_URL = 'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/my-repo';
+            withIsolatedCiEnv({
+                CODEBUILD_RESOLVED_SOURCE_VERSION: 'codebuild1234567890abcdef1234567890abcd',
+                CODEBUILD_SOURCE_REPO_URL: 'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/my-repo'
+            }, () => {
                 expect(git.commitIdFull(nonGitDir)).toBe('codebuild1234567890abcdef1234567890abcd');
                 expect(git.remoteUrl(nonGitDir)).toBe('https://git-codecommit.us-east-1.amazonaws.com/v1/repos/my-repo');
-            } finally {
-                if (origSha !== undefined) process.env.CODEBUILD_RESOLVED_SOURCE_VERSION = origSha; else delete process.env.CODEBUILD_RESOLVED_SOURCE_VERSION;
-                if (origUrl !== undefined) process.env.CODEBUILD_SOURCE_REPO_URL = origUrl; else delete process.env.CODEBUILD_SOURCE_REPO_URL;
-            }
+            });
         });
     });
 
