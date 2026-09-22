@@ -31,6 +31,8 @@ import {
     KEY_GIT_CLOSEST_TAG_NAME,
     KEY_GIT_CLOSEST_TAG_COMMIT_COUNT,
     KEY_GIT_TOTAL_COMMIT_COUNT,
+    KEY_GIT_COMMIT_TIME_ISO,
+    KEY_GIT_COMMIT_TIME_EPOCH,
 } from './constants';
 
 const defaultFileName: string = 'gitDetails.json';
@@ -61,6 +63,8 @@ export interface GitProperties {
                 email: string;
             };
             time: string;
+            time_iso?: string;
+            time_epoch?: number;
         };
         dirty: boolean;
         remote: {
@@ -171,6 +175,11 @@ const _getEnvFallback = {
                process.env.CI_COMMIT_REF_NAME ||
                process.env.VERCEL_GIT_COMMIT_REF ||
                process.env.BITBUCKET_BRANCH ||
+               process.env.BUILD_SOURCEBRANCHNAME ||
+               (process.env.BUILD_SOURCEBRANCH ? process.env.BUILD_SOURCEBRANCH.replace(/^refs\/heads\//, '') : undefined) ||
+               process.env.CIRCLE_BRANCH ||
+               process.env.BRANCH ||
+               process.env.CF_PAGES_BRANCH ||
                process.env.HEAD;
     },
     commitId: (): string | undefined => {
@@ -178,12 +187,22 @@ const _getEnvFallback = {
                process.env.GITHUB_SHA ||
                process.env.CI_COMMIT_SHA ||
                process.env.VERCEL_GIT_COMMIT_SHA ||
-               process.env.BITBUCKET_COMMIT;
+               process.env.BITBUCKET_COMMIT ||
+               process.env.BUILD_SOURCEVERSION ||
+               process.env.CIRCLE_SHA1 ||
+               process.env.COMMIT_REF ||
+               process.env.CF_PAGES_COMMIT_SHA ||
+               process.env.CODEBUILD_RESOLVED_SOURCE_VERSION;
     },
     remoteUrl: (): string | undefined => {
         if (process.env.GIT_URL) return process.env.GIT_URL;
         if (process.env.GITHUB_REPOSITORY) return `https://github.com/${process.env.GITHUB_REPOSITORY}`;
         if (process.env.CI_REPOSITORY_URL) return process.env.CI_REPOSITORY_URL;
+        if (process.env.BUILD_REPOSITORY_URI) return process.env.BUILD_REPOSITORY_URI;
+        if (process.env.CIRCLE_REPOSITORY_URL) return process.env.CIRCLE_REPOSITORY_URL;
+        if (process.env.REPOSITORY_URL) return process.env.REPOSITORY_URL;
+        if (process.env.CF_PAGES_URL) return process.env.CF_PAGES_URL;
+        if (process.env.CODEBUILD_SOURCE_REPO_URL) return process.env.CODEBUILD_SOURCE_REPO_URL;
         return undefined;
     },
     commitMessage: (short?: boolean): string | undefined => {
@@ -193,9 +212,27 @@ const _getEnvFallback = {
     },
     commitUser: (email?: boolean): string | undefined => {
         if (email) {
-            return process.env.GIT_AUTHOR_EMAIL || process.env.CI_COMMIT_AUTHOR_EMAIL;
+            return process.env.GIT_AUTHOR_EMAIL ||
+                   process.env.CI_COMMIT_AUTHOR_EMAIL ||
+                   process.env.BUILD_REQUESTEDFOREMAIL;
         }
-        return process.env.GIT_AUTHOR_NAME || process.env.GITHUB_ACTOR || process.env.CI_COMMIT_AUTHOR;
+        return process.env.GIT_AUTHOR_NAME ||
+               process.env.GITHUB_ACTOR ||
+               process.env.CI_COMMIT_AUTHOR ||
+               process.env.BUILD_REQUESTEDFOR ||
+               process.env.CIRCLE_USERNAME;
+    },
+    buildUser: (email?: boolean): string | undefined => {
+        if (email) {
+            return process.env.GIT_AUTHOR_EMAIL ||
+                   process.env.CI_COMMIT_AUTHOR_EMAIL ||
+                   process.env.BUILD_REQUESTEDFOREMAIL;
+        }
+        return process.env.GITHUB_ACTOR ||
+               process.env.CI_COMMIT_AUTHOR ||
+               process.env.GIT_AUTHOR_NAME ||
+               process.env.BUILD_REQUESTEDFOR ||
+               process.env.CIRCLE_USERNAME;
     }
 };
 
@@ -273,10 +310,14 @@ export const buildVersion = (dir?: string): string => {
 };
 
 const buildUserName = (): string => {
+    const envUser = _getEnvFallback.buildUser(false);
+    if (envUser) return envUser;
     return currentRepoName + ' could not determine this property, please pass this info via custom property map with key ' + KEY_GIT_BUILD_USER_NAME;
 };
 
 const buildUserEmail = (): string => {
+    const envEmail = _getEnvFallback.buildUser(true);
+    if (envEmail) return envEmail;
     return currentRepoName + ' could not determine this property, please pass this info via custom property map with key ' + KEY_GIT_BUILD_USER_EMAIL;
 };
 
@@ -380,6 +421,42 @@ export const dateOfLastCommitAsync = async (dir?: string): Promise<string> => {
     }
     const d = new Date(res);
     return isNaN(d.getTime()) ? res : d.toString();
+};
+
+export const dateOfLastCommitIso = (dir?: string): string => {
+    const res = _exeCmd('git', ['log', '--no-color', '-n', '1', '--pretty=format:%aI'], dir);
+    if (res.startsWith(currentRepoName)) {
+        return new Date().toISOString();
+    }
+    const d = new Date(res);
+    return isNaN(d.getTime()) ? res : d.toISOString();
+};
+
+export const dateOfLastCommitIsoAsync = async (dir?: string): Promise<string> => {
+    const res = await _exeCmdAsync('git', ['log', '--no-color', '-n', '1', '--pretty=format:%aI'], dir);
+    if (res.startsWith(currentRepoName)) {
+        return new Date().toISOString();
+    }
+    const d = new Date(res);
+    return isNaN(d.getTime()) ? res : d.toISOString();
+};
+
+export const dateOfLastCommitEpoch = (dir?: string): number => {
+    const res = _exeCmd('git', ['log', '--no-color', '-n', '1', '--pretty=format:%at'], dir);
+    if (res.startsWith(currentRepoName)) {
+        return Math.floor(Date.now() / 1000);
+    }
+    const parsed = parseInt(res, 10);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
+export const dateOfLastCommitEpochAsync = async (dir?: string): Promise<number> => {
+    const res = await _exeCmdAsync('git', ['log', '--no-color', '-n', '1', '--pretty=format:%at'], dir);
+    if (res.startsWith(currentRepoName)) {
+        return Math.floor(Date.now() / 1000);
+    }
+    const parsed = parseInt(res, 10);
+    return isNaN(parsed) ? 0 : parsed;
 };
 
 export const isDirty = (dir?: string): boolean => {
@@ -516,26 +593,146 @@ const castObjectToNestedObject = (obj: Record<string, unknown>): Record<string, 
     return jsonObject;
 };
 
+interface BatchedCommitInfo {
+    commitIdFull: string;
+    commitIdAbbrev: string;
+    commitShortMsg: string;
+    commitFullMsg: string;
+    commitUserName: string;
+    commitUserEmail: string;
+    commitTime: string;
+    commitTimeIso: string;
+    commitTimeEpoch: number;
+}
+
+const _getBatchedCommitInfo = (dir?: string): BatchedCommitInfo => {
+    const res = _exeCmd('git', ['log', '-1', '--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%ad%x1f%aI%x1f%at%x1f%B'], dir);
+    if (!res.startsWith(currentRepoName)) {
+        const parts = res.split('\x1f');
+        if (parts.length >= 9) {
+            const [fullHash, abbrevHash, shortMsg, authorName, authorEmail, adStr, isoStr, atStr] = parts;
+            const fullMsg = parts.slice(8).join('\x1f').trim();
+            const d = new Date(isoStr || adStr);
+            const isValidDate = !isNaN(d.getTime());
+            return {
+                commitIdFull: fullHash.trim(),
+                commitIdAbbrev: abbrevHash.trim(),
+                commitShortMsg: shortMsg.trim(),
+                commitFullMsg: fullMsg,
+                commitUserName: authorName.trim(),
+                commitUserEmail: authorEmail.trim(),
+                commitTime: isValidDate ? d.toString() : adStr.trim(),
+                commitTimeIso: isValidDate ? d.toISOString() : (isoStr ? isoStr.trim() : ''),
+                commitTimeEpoch: isValidDate ? Math.floor(d.getTime() / 1000) : (parseInt(atStr, 10) || 0)
+            };
+        }
+    }
+
+    const commitFull = commitIdFull(dir);
+    const commitAbbrev = commitIdAbbrev(dir);
+    const shortMsg = lastCommitMsg(true, dir);
+    const fullMsg = lastCommitMsg(false, dir);
+    const authorName = commitUserInfo(false, dir);
+    const authorEmail = commitUserInfo(true, dir);
+    const timeStr = dateOfLastCommit(dir);
+    const timeIso = dateOfLastCommitIso(dir);
+    const timeEpoch = dateOfLastCommitEpoch(dir);
+
+    return {
+        commitIdFull: commitFull,
+        commitIdAbbrev: commitAbbrev,
+        commitShortMsg: shortMsg,
+        commitFullMsg: fullMsg,
+        commitUserName: authorName,
+        commitUserEmail: authorEmail,
+        commitTime: timeStr,
+        commitTimeIso: timeIso,
+        commitTimeEpoch: timeEpoch
+    };
+};
+
+const _getBatchedCommitInfoAsync = async (dir?: string): Promise<BatchedCommitInfo> => {
+    const res = await _exeCmdAsync('git', ['log', '-1', '--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%ad%x1f%aI%x1f%at%x1f%B'], dir);
+    if (!res.startsWith(currentRepoName)) {
+        const parts = res.split('\x1f');
+        if (parts.length >= 9) {
+            const [fullHash, abbrevHash, shortMsg, authorName, authorEmail, adStr, isoStr, atStr] = parts;
+            const fullMsg = parts.slice(8).join('\x1f').trim();
+            const d = new Date(isoStr || adStr);
+            const isValidDate = !isNaN(d.getTime());
+            return {
+                commitIdFull: fullHash.trim(),
+                commitIdAbbrev: abbrevHash.trim(),
+                commitShortMsg: shortMsg.trim(),
+                commitFullMsg: fullMsg,
+                commitUserName: authorName.trim(),
+                commitUserEmail: authorEmail.trim(),
+                commitTime: isValidDate ? d.toString() : adStr.trim(),
+                commitTimeIso: isValidDate ? d.toISOString() : (isoStr ? isoStr.trim() : ''),
+                commitTimeEpoch: isValidDate ? Math.floor(d.getTime() / 1000) : (parseInt(atStr, 10) || 0)
+            };
+        }
+    }
+
+    const [
+        commitFull,
+        commitAbbrev,
+        shortMsg,
+        fullMsg,
+        authorName,
+        authorEmail,
+        timeStr,
+        timeIso,
+        timeEpoch
+    ] = await Promise.all([
+        commitIdFullAsync(dir),
+        commitIdAbbrevAsync(dir),
+        lastCommitMsgAsync(true, dir),
+        lastCommitMsgAsync(false, dir),
+        commitUserInfoAsync(false, dir),
+        commitUserInfoAsync(true, dir),
+        dateOfLastCommitAsync(dir),
+        dateOfLastCommitIsoAsync(dir),
+        dateOfLastCommitEpochAsync(dir)
+    ]);
+
+    return {
+        commitIdFull: commitFull,
+        commitIdAbbrev: commitAbbrev,
+        commitShortMsg: shortMsg,
+        commitFullMsg: fullMsg,
+        commitUserName: authorName,
+        commitUserEmail: authorEmail,
+        commitTime: timeStr,
+        commitTimeIso: timeIso,
+        commitTimeEpoch: timeEpoch
+    };
+};
+
 export const getGitProp = (customGitProp?: Record<string, any> | Map<string, any>, dir?: string): GitPropertiesFlat => {
     const normalizedProps = normalizeCustomPropMap(customGitProp);
+    const batch = _getBatchedCommitInfo(dir);
+    const tagsDesc = commitIdDescAndTags(false, dir);
     const gitProp: Record<string, any> = {
         [KEY_GIT_BRANCH]: currentBranch(dir),
         [KEY_GIT_BUILD_HOST]: buildHost(),
         [KEY_GIT_BUILD_VERSION]: buildVersion(dir),
         [KEY_GIT_BUILD_USER_NAME]: buildUserName(),
         [KEY_GIT_BUILD_USER_EMAIL]: buildUserEmail(),
-        [KEY_GIT_COMMIT_ID_ABBREVIATED]: commitIdAbbrev(dir),
+        [KEY_GIT_COMMIT_ID_ABBREVIATED]: batch.commitIdAbbrev,
         [KEY_GIT_COMMIT_ID_DESCRIBE]: commitIdDescAndTags(true, dir),
-        [KEY_GIT_COMMIT_ID]: commitIdFull(dir),
-        [KEY_GIT_COMMIT_SHORT_MESSAGE]: lastCommitMsg(true, dir),
-        [KEY_GIT_COMMIT_FULL_MESSAGE]: lastCommitMsg(false, dir),
-        [KEY_GIT_COMMIT_USER_NAME]: commitUserInfo(false, dir),
-        [KEY_GIT_COMMIT_USER_EMAIL]: commitUserInfo(true, dir),
-        [KEY_GIT_COMMIT_TIME]: dateOfLastCommit(dir),
+        [KEY_GIT_COMMIT_ID]: batch.commitIdFull,
+        [KEY_GIT_COMMIT_SHORT_MESSAGE]: batch.commitShortMsg,
+        [KEY_GIT_COMMIT_FULL_MESSAGE]: batch.commitFullMsg,
+        [KEY_GIT_COMMIT_USER_NAME]: batch.commitUserName,
+        [KEY_GIT_COMMIT_USER_EMAIL]: batch.commitUserEmail,
+        [KEY_GIT_COMMIT_TIME]: batch.commitTime,
+        [KEY_GIT_COMMIT_TIME_ISO]: batch.commitTimeIso,
+        [KEY_GIT_COMMIT_TIME_EPOCH]: batch.commitTimeEpoch,
         [KEY_GIT_DIRTY]: isDirty(dir),
         [KEY_GIT_REMOTE_ORIGIN_URL]: remoteUrl(dir),
-        [KEY_GIT_TAGS]: commitIdDescAndTags(false, dir),
-        [KEY_GIT_CLOSEST_TAG_NAME]: commitIdDescAndTags(false, dir),
+        [KEY_GIT_TAGS]: tagsDesc,
+        [KEY_GIT_CLOSEST_TAG_NAME]: tagsDesc,
         [KEY_GIT_CLOSEST_TAG_COMMIT_COUNT]: closestTagCommitCount(dir),
         [KEY_GIT_TOTAL_COMMIT_COUNT]: countOfAllCommits(dir),
     };
@@ -546,33 +743,19 @@ export const getGitPropAsync = async (customGitProp?: Record<string, any> | Map<
     const normalizedProps = normalizeCustomPropMap(customGitProp);
     const [
         branch,
-        commitAbbrev,
+        batch,
         commitDesc,
-        commitFull,
-        shortMsg,
-        fullMsg,
-        userName,
-        userEmail,
-        commitTime,
         dirty,
         remote,
-        tags,
-        closestTagName,
+        tagsDesc,
         closestCount,
         totalCount
     ] = await Promise.all([
         Promise.resolve().then(() => currentBranch(dir)),
-        commitIdAbbrevAsync(dir),
+        _getBatchedCommitInfoAsync(dir),
         commitIdDescAndTagsAsync(true, dir),
-        commitIdFullAsync(dir),
-        lastCommitMsgAsync(true, dir),
-        lastCommitMsgAsync(false, dir),
-        commitUserInfoAsync(false, dir),
-        commitUserInfoAsync(true, dir),
-        dateOfLastCommitAsync(dir),
         isDirtyAsync(dir),
         remoteUrlAsync(dir),
-        commitIdDescAndTagsAsync(false, dir),
         commitIdDescAndTagsAsync(false, dir),
         closestTagCommitCountAsync(dir),
         countOfAllCommitsAsync(dir)
@@ -584,22 +767,32 @@ export const getGitPropAsync = async (customGitProp?: Record<string, any> | Map<
         [KEY_GIT_BUILD_VERSION]: buildVersion(dir),
         [KEY_GIT_BUILD_USER_NAME]: buildUserName(),
         [KEY_GIT_BUILD_USER_EMAIL]: buildUserEmail(),
-        [KEY_GIT_COMMIT_ID_ABBREVIATED]: commitAbbrev,
+        [KEY_GIT_COMMIT_ID_ABBREVIATED]: batch.commitIdAbbrev,
         [KEY_GIT_COMMIT_ID_DESCRIBE]: commitDesc,
-        [KEY_GIT_COMMIT_ID]: commitFull,
-        [KEY_GIT_COMMIT_SHORT_MESSAGE]: shortMsg,
-        [KEY_GIT_COMMIT_FULL_MESSAGE]: fullMsg,
-        [KEY_GIT_COMMIT_USER_NAME]: userName,
-        [KEY_GIT_COMMIT_USER_EMAIL]: userEmail,
-        [KEY_GIT_COMMIT_TIME]: commitTime,
+        [KEY_GIT_COMMIT_ID]: batch.commitIdFull,
+        [KEY_GIT_COMMIT_SHORT_MESSAGE]: batch.commitShortMsg,
+        [KEY_GIT_COMMIT_FULL_MESSAGE]: batch.commitFullMsg,
+        [KEY_GIT_COMMIT_USER_NAME]: batch.commitUserName,
+        [KEY_GIT_COMMIT_USER_EMAIL]: batch.commitUserEmail,
+        [KEY_GIT_COMMIT_TIME]: batch.commitTime,
+        [KEY_GIT_COMMIT_TIME_ISO]: batch.commitTimeIso,
+        [KEY_GIT_COMMIT_TIME_EPOCH]: batch.commitTimeEpoch,
         [KEY_GIT_DIRTY]: dirty,
         [KEY_GIT_REMOTE_ORIGIN_URL]: remote,
-        [KEY_GIT_TAGS]: tags,
-        [KEY_GIT_CLOSEST_TAG_NAME]: closestTagName,
+        [KEY_GIT_TAGS]: tagsDesc,
+        [KEY_GIT_CLOSEST_TAG_NAME]: tagsDesc,
         [KEY_GIT_CLOSEST_TAG_COMMIT_COUNT]: closestCount,
         [KEY_GIT_TOTAL_COMMIT_COUNT]: totalCount,
     };
     return normalizedProps ? { ...gitProp, ...normalizedProps } : gitProp;
+};
+
+const formatPropertyValue = (val: unknown): string => {
+    if (val === undefined || val === null) return '';
+    return String(val)
+        .replace(/\\/g, '\\\\')
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n');
 };
 
 export const gitInfoAsProperties = (customGitPropMap?: Record<string, any> | Map<string, any>, dir?: string): string => {
@@ -607,7 +800,7 @@ export const gitInfoAsProperties = (customGitPropMap?: Record<string, any> | Map
     const lines: string[] = [];
     for (const key of Object.keys(finalGitProp).sort()) {
         const val = finalGitProp[key];
-        lines.push(`${key}=${val !== undefined && val !== null ? val : ''}`);
+        lines.push(`${key}=${formatPropertyValue(val)}`);
     }
     return lines.join('\n') + '\n';
 };
@@ -617,7 +810,7 @@ export const gitInfoAsPropertiesAsync = async (customGitPropMap?: Record<string,
     const lines: string[] = [];
     for (const key of Object.keys(finalGitProp).sort()) {
         const val = finalGitProp[key];
-        lines.push(`${key}=${val !== undefined && val !== null ? val : ''}`);
+        lines.push(`${key}=${formatPropertyValue(val)}`);
     }
     return lines.join('\n') + '\n';
 };
@@ -729,6 +922,121 @@ export const createGitInfoFileAsync = async (
     } catch (error) {
         throw new Error(currentRepoName + " has failed to create " + targetFile + " due to " + error);
     }
+};
+
+export interface CacheOptions {
+    ttlMs?: number;
+    dir?: string;
+    customGitProp?: Record<string, any> | Map<string, any>;
+}
+
+interface CacheEntry {
+    timestamp: number;
+    data: GitPropertiesFlat;
+}
+
+const _cache = new Map<string, CacheEntry>();
+
+export const clearGitPropCache = (): void => {
+    _cache.clear();
+};
+
+export const getGitPropCached = (options?: CacheOptions): GitPropertiesFlat => {
+    const dirKey = options?.dir || 'default';
+    const now = Date.now();
+    const entry = _cache.get(dirKey);
+    const ttl = options?.ttlMs;
+
+    if (entry && (ttl === undefined || (now - entry.timestamp) < ttl)) {
+        const customProps = normalizeCustomPropMap(options?.customGitProp);
+        return customProps ? { ...entry.data, ...customProps } : { ...entry.data };
+    }
+
+    const data = getGitProp(undefined, options?.dir);
+    _cache.set(dirKey, { timestamp: now, data });
+    const customProps = normalizeCustomPropMap(options?.customGitProp);
+    return customProps ? { ...data, ...customProps } : { ...data };
+};
+
+export const getGitPropCachedAsync = async (options?: CacheOptions): Promise<GitPropertiesFlat> => {
+    const dirKey = options?.dir || 'default';
+    const now = Date.now();
+    const entry = _cache.get(dirKey);
+    const ttl = options?.ttlMs;
+
+    if (entry && (ttl === undefined || (now - entry.timestamp) < ttl)) {
+        const customProps = normalizeCustomPropMap(options?.customGitProp);
+        return customProps ? { ...entry.data, ...customProps } : { ...entry.data };
+    }
+
+    const data = await getGitPropAsync(undefined, options?.dir);
+    _cache.set(dirKey, { timestamp: now, data });
+    const customProps = normalizeCustomPropMap(options?.customGitProp);
+    return customProps ? { ...data, ...customProps } : { ...data };
+};
+
+export interface MiddlewareOptions extends CacheOptions {
+    path?: string;
+    format?: 'json' | 'flat-json' | 'properties';
+}
+
+export const gitPropertiesMiddleware = (options?: MiddlewareOptions) => {
+    const targetPath = options?.path;
+    const format = options?.format || 'json';
+
+    return (req: any, res: any, next?: () => void): void => {
+        if (targetPath && req.url && req.url !== targetPath && !req.url.startsWith(targetPath + '?')) {
+            if (typeof next === 'function') {
+                return next();
+            }
+            return;
+        }
+
+        try {
+            const props = getGitPropCached(options);
+            if (format === 'properties') {
+                const lines: string[] = [];
+                for (const key of Object.keys(props).sort()) {
+                    lines.push(`${key}=${formatPropertyValue(props[key])}`);
+                }
+                const content = lines.join('\n') + '\n';
+                if (typeof res.setHeader === 'function') {
+                    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                }
+                if (typeof res.end === 'function') {
+                    res.end(content);
+                }
+            } else if (format === 'flat-json') {
+                const content = JSON.stringify(props, null, 2);
+                if (typeof res.setHeader === 'function') {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                }
+                if (typeof res.end === 'function') {
+                    res.end(content);
+                }
+            } else {
+                const nested = castObjectToNestedObject(props);
+                const content = JSON.stringify(nested, null, 2);
+                if (typeof res.setHeader === 'function') {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                }
+                if (typeof res.end === 'function') {
+                    res.end(content);
+                }
+            }
+        } catch (err: unknown) {
+            if (typeof next === 'function') {
+                return next();
+            }
+            if (typeof res.statusCode !== 'undefined') {
+                res.statusCode = 500;
+            }
+            if (typeof res.end === 'function') {
+                const msg = err instanceof Error ? err.message : String(err);
+                res.end(JSON.stringify({ error: msg }));
+            }
+        }
+    };
 };
 
 

@@ -1,12 +1,12 @@
 {
   "name": "npm-git-properties",
-  "version": "2.0.0",
-  "author": "parveen-rx",
+  "version": "2.1.0",
+  "author": "parveen-soni",
   "description": "Generate repository git details",
   "bugs": {
-    "url": "https://github.com/parveen-rx/npm-git-properties/issues"
+    "url": "https://github.com/parveen-soni/npm-git-properties/issues"
   },
-  "homepage": "https://github.com/parveen-rx/npm-git-properties",
+  "homepage": "https://github.com/parveen-soni/npm-git-properties",
   "license": "MIT",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -48,12 +48,14 @@
     "examples": "node examples/example-simple.js",
     "examples-detailed": "node examples/example-complex.js",
     "test": "jest",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit",
     "build": "node scripts/build.js",
     "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:parveen-rx/npm-git-properties.git"
+    "url": "git@github.com:parveen-soni/npm-git-properties.git"
   },
   "dependencies": {},
   "contributors": [
