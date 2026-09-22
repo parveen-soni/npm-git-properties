@@ -17,3 +17,5 @@ export const KEY_GIT_TAGS: string = "git.tags";
 export const KEY_GIT_CLOSEST_TAG_NAME: string = "git.closest.tag.name";
 export const KEY_GIT_CLOSEST_TAG_COMMIT_COUNT: string = "git.closest.tag.commit.count";
 export const KEY_GIT_TOTAL_COMMIT_COUNT: string = "git.total.commit.count";
+export const KEY_GIT_COMMIT_TIME_ISO: string = "git.commit.time_iso";
+export const KEY_GIT_COMMIT_TIME_EPOCH: string = "git.commit.time_epoch";

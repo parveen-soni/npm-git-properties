@@ -8,7 +8,8 @@ import {
     gitInfoAsJson,
     gitInfoAsProperties,
     getGitProp,
-    buildVersion
+    buildVersion,
+    isDirty
 } from './index';
 
 export interface CliResult {
@@ -34,6 +35,9 @@ Options:
   -f, --format <format>  Output format: json, flat-json, properties (default: auto-detected by extension or json)
   -d, --dir <directory>  Target git repository directory (default: current directory)
   -p, --print            Print output to stdout instead of writing to a file
+  -q, --silent           Suppress informative log output
+  -c, --custom <k=v>     Add custom property override (e.g. -c git.build.user.name=CI)
+  --fail-on-dirty        Exit with code 1 if working directory has uncommitted changes
   -v, --version          Print version
   -h, --help             Show help
 `;
@@ -47,6 +51,9 @@ export function runCli(args: string[] = process.argv.slice(2), options: CliOptio
     let format: 'json' | 'flat-json' | 'properties' | undefined;
     let dir: string | undefined;
     let print = false;
+    let silent = false;
+    let failOnDirty = false;
+    const customProps: Record<string, any> = {};
 
     const getOptValue = (index: number, flag: string): { val?: string; err?: string } => {
         if (index + 1 >= args.length || args[index + 1].startsWith('-')) {
@@ -100,6 +107,27 @@ export function runCli(args: string[] = process.argv.slice(2), options: CliOptio
             i++;
         } else if (arg === '-p' || arg === '--print') {
             print = true;
+        } else if (arg === '-q' || arg === '--silent') {
+            silent = true;
+        } else if (arg === '--fail-on-dirty') {
+            failOnDirty = true;
+        } else if (arg === '-c' || arg === '--custom') {
+            const res = getOptValue(i, arg);
+            if (res.err) {
+                error(res.err);
+                return { exitCode: 1, error: res.err };
+            }
+            const val = res.val!;
+            i++;
+            const eqIdx = val.indexOf('=');
+            if (eqIdx === -1) {
+                const msg = `Error: Option '--custom' must be formatted as key=value (got '${val}')`;
+                error(msg);
+                return { exitCode: 1, error: msg };
+            }
+            const k = val.substring(0, eqIdx).trim();
+            const v = val.substring(eqIdx + 1).trim();
+            customProps[k] = v;
         } else if (arg.startsWith('-')) {
             const msg = `Unknown option: ${arg}. See --help for available options.`;
             error(msg);
@@ -116,14 +144,23 @@ export function runCli(args: string[] = process.argv.slice(2), options: CliOptio
         }
     }
 
+    if (failOnDirty && isDirty(dir)) {
+        const msg = 'Error: Working directory has uncommitted changes (--fail-on-dirty enabled).';
+        error(msg);
+        return { exitCode: 1, error: msg };
+    }
+
+    const hasCustom = Object.keys(customProps).length > 0;
+    const propsArg = hasCustom ? customProps : undefined;
+
     if (print) {
         let content: string;
         if (format === 'properties') {
-            content = gitInfoAsProperties(undefined, dir);
+            content = gitInfoAsProperties(propsArg, dir);
         } else if (format === 'flat-json') {
-            content = JSON.stringify(getGitProp(undefined, dir), null, 2);
+            content = JSON.stringify(getGitProp(propsArg, dir), null, 2);
         } else {
-            content = gitInfoAsJson(undefined, false, dir);
+            content = gitInfoAsJson(propsArg, false, dir);
         }
         log(content);
         return { exitCode: 0, output: content };
@@ -132,9 +169,11 @@ export function runCli(args: string[] = process.argv.slice(2), options: CliOptio
     const outputFile = output || (format === 'properties' ? 'git.properties' : 'gitDetails.json');
     const targetPath = dir && !path.isAbsolute(outputFile) ? path.resolve(dir, outputFile) : outputFile;
     try {
-        createGitInfoFile(undefined, targetPath, format, dir);
+        createGitInfoFile(propsArg, targetPath, format, dir);
         const msg = `Generated git properties file at: ${targetPath}`;
-        log(msg);
+        if (!silent) {
+            log(msg);
+        }
         return { exitCode: 0, output: msg };
     } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
