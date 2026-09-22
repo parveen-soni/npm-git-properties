@@ -137,3 +137,4 @@ dist
 # build output
 dist
 gitDetails.json
+git.properties
